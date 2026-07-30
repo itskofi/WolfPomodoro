@@ -7,9 +7,9 @@ enum Tab: String, CaseIterable {
     /// content being torn down and rebuilt at a new size.
     var panelHeight: CGFloat {
         switch self {
-        case .timer:    return 296
-        case .history:  return 356
-        case .settings: return 452
+        case .timer:    return 214
+        case .history:  return 330
+        case .settings: return 430
         }
     }
 }
@@ -71,14 +71,10 @@ struct PopoverView: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
-                WolfMark(color: Theme.accent(forBreak: timer.phase.isBreak))
-                    .frame(width: 13, height: 13)
-                Text("WOLF")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(3)
-                    .foregroundStyle(Theme.textDim)
-            }
+            Text("WOLF")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(3)
+                .foregroundStyle(Theme.textDim)
 
             Spacer()
 
@@ -132,53 +128,6 @@ private struct TabButton: View {
     }
 }
 
-/// Minimal wolf head: two ears tapering to a muzzle, drawn as a single mark.
-struct WolfMark: View {
-    var color: Color
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            Path { p in
-                p.move(to: CGPoint(x: w * 0.10, y: h * 0.00))
-                p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.26))
-                p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.26))
-                p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.00))
-                p.addLine(to: CGPoint(x: w * 0.94, y: h * 0.55))
-                p.addLine(to: CGPoint(x: w * 0.50, y: h * 1.00))
-                p.addLine(to: CGPoint(x: w * 0.06, y: h * 0.55))
-                p.closeSubpath()
-            }
-            .fill(color)
-        }
-    }
-}
-
-/// The signature element: a stopwatch bezel of 60 ticks. Ticks still to come are lit in
-/// the phase colour; spent ticks fall back to the rim colour, so the dial empties the way
-/// a real timer does.
-struct TickDial: View {
-    let progress: Double
-    let accent: Color
-    var diameter: CGFloat = 150
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<60, id: \.self) { index in
-                let spent = Double(index) / 60 < progress
-                let isMajor = index % 5 == 0
-                Capsule()
-                    .fill(spent ? Theme.surfaceRim : accent)
-                    .frame(width: isMajor ? 2 : 1.4, height: isMajor ? 9 : 5.5)
-                    .offset(y: -diameter / 2 + 6)
-                    .rotationEffect(.degrees(Double(index) * 6))
-            }
-        }
-        .frame(width: diameter, height: diameter)
-        .animation(.linear(duration: 0.3), value: progress)
-    }
-}
-
 struct TimerTab: View {
     @ObservedObject var timer: PomodoroTimer
     @ObservedObject var settings: Settings
@@ -186,19 +135,30 @@ struct TimerTab: View {
     private var accent: Color { Theme.accent(forBreak: timer.phase.isBreak) }
 
     var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                TickDial(progress: timer.progress, accent: accent)
-                VStack(spacing: 5) {
-                    Text(timer.remaining.clockString)
-                        .font(Theme.clockFont(38))
-                        .foregroundStyle(Theme.text)
-                    Text(timer.phase.title.uppercased())
-                        .font(Theme.eyebrow(9))
-                        .tracking(2)
-                        .foregroundStyle(accent)
+        VStack(spacing: 12) {
+            VStack(spacing: 6) {
+                Text(timer.phase.title.uppercased())
+                    .font(Theme.eyebrow(9))
+                    .tracking(1.8)
+                    .foregroundStyle(Theme.textDim)
+
+                Text(timer.remaining.clockString)
+                    .font(Theme.clockFont(34))
+                    .foregroundStyle(Theme.text)
+
+                // A slim bar carries progress; it stays out of the way of the number.
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.surfaceRim)
+                        Capsule()
+                            .fill(accent)
+                            .frame(width: geo.size.width * timer.progress)
+                    }
                 }
+                .frame(height: 3)
+                .padding(.top, 4)
             }
+            .padding(.top, 6)
 
             SessionDots(done: timer.completedFocusSessions, total: settings.intervals, accent: accent)
 

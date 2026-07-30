@@ -12,11 +12,11 @@ enum MenuBarBox {
         var isPaused: Bool
     }
 
-    private static let height: CGFloat = 20
-    private static let horizontalPadding: CGFloat = 7
-    private static let cornerRadius: CGFloat = 5
+    private static let height: CGFloat = 16
+    private static let horizontalPadding: CGFloat = 5
+    private static let cornerRadius: CGFloat = 3.5
 
-    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .semibold)
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
 
     static func image(_ model: Model) -> NSImage {
         let tint: NSColor = model.isBreak ? breakGreen : labelColor()
@@ -40,12 +40,12 @@ enum MenuBarBox {
                 NSGraphicsContext.saveGraphicsState()
                 path.addClip()
                 let fillWidth = box.width * CGFloat(min(max(fraction, 0), 1))
-                tint.withAlphaComponent(0.28 * alpha).setFill()
+                tint.withAlphaComponent(0.22 * alpha).setFill()
                 NSRect(x: box.minX, y: box.minY, width: fillWidth, height: box.height).fill()
                 NSGraphicsContext.restoreGraphicsState()
             }
 
-            tint.withAlphaComponent(0.8 * alpha).setStroke()
+            tint.withAlphaComponent(0.65 * alpha).setStroke()
             path.lineWidth = 1
             path.stroke()
 

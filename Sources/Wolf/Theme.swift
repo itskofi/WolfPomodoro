@@ -75,7 +75,7 @@ enum Theme {
     }
 
     /// Small all-caps label with wide tracking, used for every eyebrow in the app.
-    static func eyebrow(_ size: CGFloat = 9) -> Font {
+    static func eyebrow(_ size: CGFloat = 8.5) -> Font {
         .system(size: size, weight: .semibold)
     }
 }
@@ -113,12 +113,12 @@ struct Card<Content: View>: View {
             if let title {
                 Text(title.uppercased())
                     .font(Theme.eyebrow())
-                    .tracking(1.4)
+                    .tracking(1.2)
                     .foregroundStyle(Theme.textFaint)
             }
             content
         }
-        .padding(13)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 9)
@@ -139,7 +139,7 @@ struct Row<Control: View>: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(label)
-                .font(.system(size: 12))
+                .font(.system(size: 11.5))
                 .foregroundStyle(Theme.text)
                 .lineLimit(1)
             Spacer(minLength: 6)
@@ -158,7 +158,7 @@ struct WolfPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Theme.onAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -175,7 +175,7 @@ struct WolfGhostButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 11.5, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(hovering ? Theme.text : Theme.textDim)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)

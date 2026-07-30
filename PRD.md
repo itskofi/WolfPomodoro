@@ -1,6 +1,6 @@
 # PRD — Wolf (macOS Pomodoro Timer)
 
-**Status:** v0.3
+**Status:** v0.4
 **Date:** 2026-07-30 (v0.1 → v0.3; renamed from FlowClone to **Wolf** in v0.3)
 **Platform:** macOS 14+ (built and tested on macOS 26.5, Apple Silicon)
 
@@ -56,9 +56,9 @@ focus duration mid-focus does not retroactively move the current deadline).
 ### FR-3 Menu bar item
 - `NSStatusItem` is the app's only permanent UI; the app is an accessory (no Dock icon,
   no main window).
-- The indicator is a drawn **rounded box** (20 pt tall, width hugging the text) with the
-  remaining `MM:SS` set at 12.5 pt semibold **inside** it, so the box is filled by its
-  label rather than padded with empty space. Its horizontal fill tracks phase progress, in the direction chosen in
+- The indicator is a drawn **rounded box** (16 pt tall, width hugging the text) with the
+  remaining `MM:SS` set at 10.5 pt regular **inside** it — sized to sit quietly among the
+  system's own menu bar items rather than dominating them. Its horizontal fill tracks phase progress, in the direction chosen in
   Settings and stated in words:
   - **Empties out** (default): full at phase start, empty at `00:00`.
   - **Fills up**: empty at phase start, full at `00:00`.
@@ -67,10 +67,12 @@ focus duration mid-focus does not retroactively move the current deadline).
   half opacity.
 - Clicking opens a panel directly under the menu bar with three tabs:
   **Timer · History · Settings** (see §6). The panel is sized to its content per tab.
-- Timer tab: tick dial with countdown, phase name, session dots (`● ● ○ ○`), one primary
-  Start/Pause button, with Skip and Reset as ghost buttons beneath it.
+- Timer tab: phase name, countdown, a slim progress bar, session dots (`● ● ○ ○`), one
+  primary Start/Pause button, with Skip and Reset as ghost buttons beneath it.
 
 ### FR-4 Notification
+- The app has **no bundle icon**, so notifications show macOS's generic placeholder rather
+  than app branding. macOS gives no API to suppress the icon slot entirely.
 - On every phase transition the app posts a local notification via `UserNotifications`:
   - Focus ended → "Focus session complete — time for a break" (+ break length).
   - Break ended → "Break over — back to focus".
@@ -82,8 +84,8 @@ focus duration mid-focus does not retroactively move the current deadline).
 - When a focus session ends and the setting is on, a borderless full-screen window covers
   **every connected display**, above all other windows and above the menu bar
   (`.screenSaver` window level, joins all Spaces).
-- Content: "Time for a break", live countdown of the break, session counter, and buttons
-  **Skip break** and **Start focus now**.
+- Content: "Time for a break", live countdown, session dots, today's focus total, and
+  buttons **Skip break** and **Dismiss screen**. No logo or dial.
 - The window closes automatically when the break ends, on Skip, on `Esc`, or via the ✕ at
   its top-left corner.
 - The screen is dismissible (it does not lock the machine or trap input) — it is a strong
@@ -159,11 +161,11 @@ choice is applied as an `NSAppearance` on the panel and the break screen.
 | `onAccent` | `#FFFFFF` | `#16171A` | labels on an accent fill |
 | `text` / `textDim` | `#1C1D20` / `#6C6E73` | `#ECEAE5` / `#97948D` | copy |
 
-**Signature — the tick dial.** Instead of the usual pomodoro progress ring, the countdown
-sits inside a 60-tick stopwatch bezel (`TickDial`): ticks still to come are lit in the
-phase colour, spent ticks fall back to the rim, so the dial visibly empties. Every fifth
-tick is longer, as on a real bezel. The countdown is set in **monospaced** type, so the
-panel reads as an instrument and the digits never jitter as numbers change.
+**Restraint over ornament.** There is no dial, ring, or mascot in the interface. The timer
+view is the phase name, the countdown in **monospaced** type (so digits never jitter), and
+a 3 pt progress bar. The app ships **without a bundle icon** at all, so nothing branded
+appears in Notification Center. Type is small and uniform — nothing above 34 pt in the
+panel — because an oversized number in a 320 pt panel reads as a toy.
 
 Layout rules:
 - **Content-sized panel** (320 pt wide) — each tab is exactly as tall as it needs to be,
@@ -185,7 +187,7 @@ Layout rules:
   tinted with the current phase. The app icon extends it: a wolf in profile with an amber
   clock for its left eye — dial, ticks and hands — and a plain green almond for its right.
 
-## 7. Acceptance criteria (v0.3)
+## 7. Acceptance criteria (v0.4)
 
 1. Set focus 1 min / short break 1 min / long break after 2, press Start.
 2. Menu bar box counts down with the time inside it and drains to empty at `00:00`.

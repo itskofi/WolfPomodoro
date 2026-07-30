@@ -12,7 +12,6 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Wolf "$APP/Contents/MacOS/Wolf"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-[[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --deep --sign - "$APP"
 
 echo "Built $APP"

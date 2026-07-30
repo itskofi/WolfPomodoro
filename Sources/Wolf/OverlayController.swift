@@ -83,25 +83,13 @@ private struct OverlayView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 20) {
-                HStack(spacing: 10) {
-                    WolfMark(color: accent).frame(width: 18, height: 18)
-                    Text("WOLF")
-                        .font(.system(size: 13, weight: .semibold))
-                        .tracking(5)
-                        .foregroundStyle(Theme.textDim)
-                }
-                .padding(.bottom, 4)
-
                 Text(timer.phase.isBreak ? "Time for a break" : "Back to focus")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(Theme.textDim)
 
-                ZStack {
-                    TickDial(progress: timer.progress, accent: accent, diameter: 340)
-                    Text(timer.remaining.clockString)
-                        .font(Theme.clockFont(92))
-                        .foregroundStyle(Theme.text)
-                }
+                Text(timer.remaining.clockString)
+                    .font(Theme.clockFont(84))
+                    .foregroundStyle(Theme.text)
 
                 HStack(spacing: 9) {
                     ForEach(0..<max(1, settings.intervals), id: \.self) { index in
@@ -112,7 +100,7 @@ private struct OverlayView: View {
                 }
 
                 Text("\(store.todayFocusSeconds.durationString) focused today  ·  \(store.todayFocusSessions) sessions")
-                    .font(.system(size: 14))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(Theme.textDim)
 
                 HStack(spacing: 12) {
@@ -140,10 +128,10 @@ private struct OverlayView: View {
 private struct OverlayButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .medium))
+            .font(.system(size: 12.5, weight: .medium))
             .foregroundStyle(Theme.text)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 11)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 9)
                     .fill(configuration.isPressed ? Theme.wash : Color.clear)

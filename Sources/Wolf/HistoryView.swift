@@ -11,10 +11,10 @@ struct HistoryView: View {
             Card(title: "Today") {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text(store.todayFocusSeconds.durationString)
-                        .font(.system(size: 34, weight: .light, design: .rounded))
+                        .font(.system(size: 26, weight: .regular))
                         .foregroundStyle(Theme.text)
                     Text("focused")
-                        .font(.system(size: 11))
+                        .font(.system(size: 10.5))
                         .foregroundStyle(Theme.textDim)
                 }
                 statLine
@@ -54,14 +54,14 @@ struct HistoryView: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(isToday(day.date) ? Theme.accent : Theme.accent.opacity(0.28))
                         .frame(maxWidth: .infinity)
-                        .frame(height: max(3, 62 * day.focus / peak))
+                        .frame(height: max(3, 54 * day.focus / peak))
                     Text(weekdayInitial(day.date))
                         .font(.system(size: 9, weight: isToday(day.date) ? .bold : .regular))
                         .foregroundStyle(isToday(day.date) ? Theme.text : Theme.textFaint)
                 }
             }
         }
-        .frame(height: 80, alignment: .bottom)
+        .frame(height: 70, alignment: .bottom)
     }
 
     private var grid: some View {
