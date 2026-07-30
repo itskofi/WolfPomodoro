@@ -30,8 +30,8 @@ struct PopoverView: View {
             tabBar
             Divider().overlay(Theme.surfaceRim)
 
-            // All three tabs stay mounted and cross-fade; only the panel height animates.
-            // Swapping them with a switch rebuilt the view and read as a page refresh.
+            // All three tabs stay mounted; switching only changes which one is visible.
+            // No animation and no rebuild — the panel must snap, not slide.
             ZStack(alignment: .top) {
                 tabContent(.timer) {
                     TimerTab(timer: timer, settings: settings).padding(14)
@@ -53,7 +53,6 @@ struct PopoverView: View {
         .frame(width: Theme.popoverWidth)
         .background(Theme.background)
         .environment(\.colorScheme, appearance.scheme(for: settings.appearance))
-        .animation(.easeInOut(duration: 0.22), value: tab)
     }
 
     @ViewBuilder
@@ -95,9 +94,7 @@ struct PopoverView: View {
     private var tabBar: some View {
         HStack(spacing: 2) {
             ForEach(Tab.allCases, id: \.self) { item in
-                TabButton(item: item, isSelected: tab == item) {
-                    withAnimation(.easeOut(duration: 0.13)) { tab = item }
-                }
+                TabButton(item: item, isSelected: tab == item) { tab = item }
             }
         }
         .padding(3)

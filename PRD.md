@@ -141,10 +141,10 @@ actual elapsed seconds separately from the countdown (accumulated across pauses)
 
 ## 6. Design language
 
-Wolf takes its palette from the animal rather than from software: warm charcoal pelt, bone
-off-white, and **amber — the eye** — as the single accent, with a moonlit sage for breaks.
-It is deliberately **opaque**: no vibrancy, no translucency, so the panel reads as its own
-object rather than a tinted sheet over the desktop.
+Warm charcoal pelt and bone off-white carry the surfaces; **green is the app's colour** and
+drives every accent — the wolf mark, the tick dial, buttons, toggles and charts — with a
+paler green marking breaks. Wolf is deliberately **opaque**: no vibrancy, no translucency,
+so the panel reads as its own object rather than a tinted sheet over the desktop.
 
 Every token in `Theme.swift` is a **dynamic colour**, so one definition serves both
 appearances. The user picks Light, Dark, or **Match system** (default) in Settings; the
@@ -154,8 +154,9 @@ choice is applied as an `NSAppearance` on the panel and the break screen.
 |---|---|---|---|
 | `background` | `#EDEDEA` | `#191A1C` | panel and break-screen base |
 | `surface` / `surfaceRim` | `#FFFFFF` / `#DCDBD6` | `#222326` / `#33353A` | cards, tabs, hairlines |
-| `accent` | `#B0741F` | `#E0A03C` | focus phase — the wolf's eye |
-| `mint` | `#3D7565` | `#7FB5A2` | break phase |
+| `accent` | `#1E7F4F` | `#4ED18A` | focus phase and every accent |
+| `mint` | `#2C7A6B` | `#86DCC4` | break phase |
+| `onAccent` | `#FFFFFF` | `#16171A` | labels on an accent fill |
 | `text` / `textDim` | `#1C1D20` / `#6C6E73` | `#ECEAE5` / `#97948D` | copy |
 
 **Signature — the tick dial.** Instead of the usual pomodoro progress ring, the countdown
@@ -174,9 +175,15 @@ Layout rules:
 - **Chrome** — ✕ close at the top-left in the macOS idiom and ⏻ quit at the top-right, both
   quiet until the pointer is over them, when they colour. Tabs highlight on hover too.
   The break screen carries the same ✕ at its top-left.
+- **No transition on tab change.** The title bar and tab bar are static furniture and must
+  never redraw. All three tabs stay mounted; switching only changes which is visible, with
+  no animation and no view rebuild, and `popover.animates = false` stops NSPopover from
+  animating its own resize (which read as the content sliding down the panel).
+- **Hit targets** — button styles declare an explicit `contentShape`; a clear background
+  takes no clicks, which otherwise leaves only the label clickable.
 - **Wolf mark** — a geometric wolf head used in the title bar and on the break screen,
   tinted with the current phase. The app icon extends it: a wolf in profile with an amber
-  clock ring clamped in its jaws, a bite already out of the dial, speed streaks behind.
+  clock for its left eye — dial, ticks and hands — and a plain green almond for its right.
 
 ## 7. Acceptance criteria (v0.3)
 

@@ -63,7 +63,7 @@ enum MenuBarBox {
         return image
     }
 
-    private static let breakGreen = NSColor(srgbRed: 0.35, green: 0.85, blue: 0.60, alpha: 1)
+    private static let breakGreen = NSColor(srgbRed: 0.525, green: 0.863, blue: 0.769, alpha: 1)
 
     private static func labelColor() -> NSColor {
         var color = NSColor.labelColor

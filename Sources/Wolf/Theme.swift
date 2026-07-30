@@ -25,9 +25,9 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 
 /// Wolf's visual language.
 ///
-/// Palette is taken from the animal rather than from software: warm charcoal pelt, bone
-/// off-white, and **amber — the eye** — as the single accent, with a moonlit sage for
-/// breaks. Every colour is dynamic, so the same tokens serve light and dark.
+/// Warm charcoal pelt and bone off-white carry the surfaces; **green is the app's colour**
+/// and drives every accent — the wolf mark, the dial, controls and charts — with a paler
+/// green marking breaks. Every colour is dynamic, so the same tokens serve light and dark.
 enum Theme {
     private static func dynamic(light: NSColor, dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -48,18 +48,20 @@ enum Theme {
     static let surface    = dynamic(light: srgb(0xFFFFFF), dark: srgb(0x222326))
     /// Hairlines and inactive marks.
     static let surfaceRim = dynamic(light: srgb(0xDCDBD6), dark: srgb(0x33353A))
-    /// Amber: the wolf's eye. Focus phase.
-    static let accent     = dynamic(light: srgb(0xB0741F), dark: srgb(0xE0A03C))
-    /// Moonlit sage. Break phase.
-    static let mint       = dynamic(light: srgb(0x3D7565), dark: srgb(0x7FB5A2))
+    /// Green: the app's colour, used for the focus phase and every accent.
+    static let accent     = dynamic(light: srgb(0x1E7F4F), dark: srgb(0x4ED18A))
+    /// A paler, cooler green for breaks, so the two phases stay distinguishable.
+    static let mint       = dynamic(light: srgb(0x2C7A6B), dark: srgb(0x86DCC4))
     static let text       = dynamic(light: srgb(0x1C1D20), dark: srgb(0xECEAE5))
     static let textDim    = dynamic(light: srgb(0x6C6E73), dark: srgb(0x97948D))
     static let textFaint  = dynamic(light: srgb(0x9B9C9F), dark: srgb(0x63656A))
     /// Fill behind ghost buttons and pressed states.
     static let wash       = dynamic(light: srgb(0x000000, 0.05), dark: srgb(0xFFFFFF, 0.06))
 
-    /// Text on top of an accent fill. Fixed, never appearance-derived.
-    static let onAccent = Color(nsColor: NSColor(srgbRed: 0.086, green: 0.090, blue: 0.098, alpha: 1))
+    /// Text on top of an accent fill. Paired with the accent shade in use — the light
+    /// accent is a deep green (needs white), the dark accent is a bright green (needs ink)
+    /// — so the label always has contrast.
+    static let onAccent = dynamic(light: srgb(0xFFFFFF), dark: srgb(0x16171A))
 
     static let controlWidth: CGFloat = 138
     static let popoverWidth: CGFloat = 320

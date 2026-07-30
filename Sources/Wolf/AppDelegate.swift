@@ -74,6 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func setUpPopover() {
         popover = NSPopover()
         popover.behavior = .transient
+        // Without this the popover animates its own resize when the tab height changes,
+        // which reads as the content sliding down the panel.
+        popover.animates = false
         popover.delegate = self
         popover.appearance = settings.appearance.nsAppearance
         appliedAppearance = settings.appearance
