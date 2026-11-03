@@ -148,7 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Esc closes from the timer; on a sub-page it goes back (handled in the view).
         escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == 53, event.window === self.panel,
-                  self.currentTab == .timer else { return event }
+                  self.currentTab == .timer,
+                  // While a text field is being edited, Esc belongs to the field (cancel).
+                  !(self.panel.firstResponder is NSText) else { return event }
             self.closePanel()
             return nil
         }

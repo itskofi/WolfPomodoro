@@ -108,6 +108,9 @@ struct TimerTab: View {
     let open: (Tab) -> Void
 
     @State private var hovering = false
+    @State private var editing = false
+    @State private var draft = ""
+    @FocusState private var fieldFocused: Bool
 
     private let padding: CGFloat = 22
     private let headerButton: CGFloat = 28
@@ -122,8 +125,7 @@ struct TimerTab: View {
             VStack(alignment: .leading, spacing: 0) {
                 header(layer)
                 Spacer(minLength: 0)
-                BigDigits(text: timer.remaining.bigClockString, size: 86, color: layer.text)
-                    .opacity(layer.showsText ? 1 : 0)
+                digits(layer)
                 Text(statusLine)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(layer.text.opacity(0.6))
@@ -137,6 +139,87 @@ struct TimerTab: View {
         .onHover { inside in
             withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
         }
+        // Editing is only for an idle phase; anything that starts or changes it ends the edit.
+        .onChange(of: timer.state) { _, state in if state != .idle { cancelEdit() } }
+        .onChange(of: timer.phase) { _, _ in cancelEdit() }
+        .onChange(of: fieldFocused) { _, focused in if !focused && editing { commitEdit() } }
+    }
+
+    // MARK: - Inline duration edit
+
+    /// The big number. Text layers draw it; the controls layer puts an invisible copy on
+    /// top that takes the double-click, and swaps in a minutes field while editing. The
+    /// field sits in an overlay so the layout never shifts between the layers.
+    @ViewBuilder
+    private func digits(_ layer: DrainLayer) -> some View {
+        let number = BigDigits(text: timer.remaining.bigClockString, size: 86,
+                               color: layer == .controls ? .clear : layer.text)
+        if layer == .controls {
+            number
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) { beginEdit() }
+                .help(timer.state == .idle ? "Double-click to change the duration" : "")
+                .overlay(alignment: .leading) {
+                    if editing { minutesField }
+                }
+        } else {
+            number.opacity(layer.showsText && !editing ? 1 : 0)
+        }
+    }
+
+    private var minutesField: some View {
+        // Ink on the fill, white on the ground — whichever sits behind the number.
+        let color = fillHeight > editDigitsCenterFromBottom ? Theme.ink : Theme.onGround
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            TextField("", text: $draft)
+                .textFieldStyle(.plain)
+                .font(Theme.digits(86))
+                .foregroundStyle(color)
+                .tint(color)
+                // Hug the typed digits (fixed-width), so "min" sits right after them.
+                .frame(width: CGFloat(max(draft.count, 1)) * 54 + 6)
+                .focused($fieldFocused)
+                .onSubmit(commitEdit)
+                .onExitCommand(perform: cancelEdit)
+                .onChange(of: draft) { _, value in
+                    let digitsOnly = String(value.filter(\.isNumber).prefix(3))
+                    if digitsOnly != value { draft = digitsOnly }
+                }
+            Text("min")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(color.opacity(0.6))
+        }
+    }
+
+    /// Roughly where the number's middle sits, measured from the panel's bottom edge.
+    private var editDigitsCenterFromBottom: CGFloat { padding + controlHeight + 22 + 22 + 52 }
+
+    private func beginEdit() {
+        guard timer.state == .idle, active else { return }
+        draft = String(Int(timer.totalForCurrentPhase / 60))
+        editing = true
+        DispatchQueue.main.async { fieldFocused = true }
+    }
+
+    private func commitEdit() {
+        guard editing else { return }
+        if let minutes = Int(draft), timer.state == .idle {
+            let clamped = min(max(minutes, 1), 180)
+            switch timer.phase {
+            case .focus:      settings.focusMinutes = clamped
+            case .shortBreak: settings.shortBreakMinutes = clamped
+            case .longBreak:  settings.longBreakMinutes = clamped
+            }
+            timer.refreshIdleDuration()
+        }
+        editing = false
+        fieldFocused = false
+    }
+
+    private func cancelEdit() {
+        guard editing else { return }
+        editing = false
+        fieldFocused = false
     }
 
     private func header(_ layer: DrainLayer) -> some View {
@@ -189,7 +272,8 @@ struct TimerTab: View {
                                                  foreground: palette.softForeground))
                     .help("Skip")
             }
-            .disabled(!active)
+            // While typing, Space and the buttons must not start or skip the timer.
+            .disabled(!active || editing)
         } else {
             Color.clear.frame(height: controlHeight)
         }
@@ -202,6 +286,7 @@ struct TimerTab: View {
     }
 
     private var statusLine: String {
+        if editing { return "enter to save · esc to cancel" }
         let today = "\(store.todayFocusSeconds < 60 ? "0m" : store.todayFocusSeconds.durationString) today"
         switch timer.state {
         case .running: return "ends \(Date().addingTimeInterval(timer.remaining).shortTime) · \(today)"
