@@ -4,101 +4,68 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var timer: PomodoroTimer
     @ObservedObject var store: SessionStore
+    let onQuit: () -> Void
+
+    @State private var confirmClear = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            Card(title: "Durations") {
+        Form {
+            Section {
                 DurationPicker(label: "Focus", minutes: $settings.focusMinutes,
                                presets: Settings.focusPresets)
                 DurationPicker(label: "Short break", minutes: $settings.shortBreakMinutes,
                                presets: Settings.shortBreakPresets)
                 DurationPicker(label: "Long break", minutes: $settings.longBreakMinutes,
                                presets: Settings.longBreakPresets)
-                Row(label: "Long break after") {
-                    Picker("", selection: $settings.intervals) {
-                        ForEach(1...12, id: \.self) { count in
-                            Text(count == 1 ? "1 session" : "\(count) sessions").tag(count)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
+                Picker("Long break after", selection: $settings.intervals) {
+                    ForEach(1...12, id: \.self) { Text($0 == 1 ? "1 session" : "\($0) sessions").tag($0) }
                 }
             }
 
-            Card(title: "Behaviour") {
-                Row(label: "Auto-start breaks") {
-                    Toggle("", isOn: $settings.autoStartBreaks).labelsHidden()
-                }
-                Row(label: "Auto-start focus") {
-                    Toggle("", isOn: $settings.autoStartFocus).labelsHidden()
-                }
-                Row(label: "Play sound") {
-                    Toggle("", isOn: $settings.playSound).labelsHidden()
-                }
-                Row(label: "Full-screen break") {
-                    Toggle("", isOn: $settings.showOverlay).labelsHidden()
-                }
+            Section {
+                Toggle("Auto-start breaks", isOn: $settings.autoStartBreaks)
+                Toggle("Auto-start focus", isOn: $settings.autoStartFocus)
+                Toggle("Play sound", isOn: $settings.playSound)
+                Toggle("Full-screen break", isOn: $settings.showOverlay)
             }
 
-            Card(title: "Appearance") {
-                Row(label: "Theme") {
-                    Picker("", selection: $settings.appearance) {
-                        ForEach(AppearanceMode.allCases) { Text($0.label).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
+            Section {
+                Picker("Menu bar", selection: $settings.boxDirection) {
+                    ForEach(BoxDirection.allCases) { Text($0.label).tag($0) }
                 }
-            }
-
-            Card(title: "Menu bar box") {
-                Row(label: "Direction") {
-                    Picker("", selection: $settings.boxDirection) {
-                        ForEach(BoxDirection.allCases) { Text($0.label).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
+            } footer: {
                 Text(settings.boxDirection.explanation)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(Theme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
 
-            Card(title: "Notification text") {
-                fieldLabel("When focus ends")
-                TextField("", text: $settings.focusEndMessage, axis: .vertical)
-                    .lineLimit(1...3)
-                fieldLabel("When a break ends")
-                TextField("", text: $settings.breakEndMessage, axis: .vertical)
-                    .lineLimit(1...3)
+            Section("Notifications") {
+                TextField("Focus ends", text: $settings.focusEndMessage)
+                TextField("Break ends", text: $settings.breakEndMessage)
             }
-            .textFieldStyle(.roundedBorder)
-            .font(.system(size: 11.5))
 
-            Card(title: "History data") {
-                Row(label: "Stored sessions") {
-                    Text("\(store.records.count)")
-                        .font(.system(size: 12).monospacedDigit())
-                        .foregroundStyle(Theme.textDim)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+            Section {
+                LabeledContent("Stored sessions", value: "\(store.records.count)")
+                Button(confirmClear ? "Click Again to Clear" : "Clear History…") {
+                    if confirmClear { store.clear(); confirmClear = false } else { confirmClear = true }
                 }
-                Button("Clear history") { store.clear() }
-                    .buttonStyle(WolfGhostButtonStyle())
+                .foregroundStyle(.red)
+                .disabled(store.records.isEmpty)
+            }
+
+            Section {
+                Button("Quit Wolf", action: onQuit)
             }
         }
-        .toggleStyle(.switch)
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .controlSize(.small)
-        .tint(Theme.accent)
+        .onChange(of: confirmClear) { _, armed in
+            guard armed else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmClear = false }
+        }
         .onChange(of: settings.focusMinutes) { _, _ in timer.refreshIdleDuration() }
         .onChange(of: settings.shortBreakMinutes) { _, _ in timer.refreshIdleDuration() }
         .onChange(of: settings.longBreakMinutes) { _, _ in timer.refreshIdleDuration() }
-    }
-
-    private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10))
-            .foregroundStyle(Theme.textFaint)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

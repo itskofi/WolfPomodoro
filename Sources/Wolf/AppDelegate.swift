@@ -2,7 +2,26 @@ import AppKit
 import SwiftUI
 import Combine
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+/// Borderless panel that can take keyboard focus without activating the app.
+final class WolfPanel: NSPanel {
+    init() {
+        super.init(contentRect: .zero,
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        isFloatingPanel = true
+        level = .popUpMenu
+        backgroundColor = .clear
+        isOpaque = false
+        hasShadow = true
+        isMovable = false
+        hidesOnDeactivate = false
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+    }
+
+    override var canBecomeKey: Bool { true }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings.shared
     private let store = SessionStore.shared
     private lazy var timer = PomodoroTimer(settings: settings, store: store)
@@ -10,15 +29,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let overlay = OverlayController()
 
     private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
+    private let panel = WolfPanel()
+    private var currentTab: Tab = .timer
+    private var outsideClickMonitor: Any?
+    private var escMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
     private var appearanceObservation: NSKeyValueObservation?
-    private var appliedAppearance: AppearanceMode?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notifier.requestAuthorization()
         setUpStatusItem()
-        setUpPopover()
+        setUpPanel()
 
         timer.onPhaseEnd = { [weak self] ended, next in
             self?.handlePhaseEnd(ended: ended, next: next)
@@ -31,7 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] in
                 self?.updateStatusItem()
-                self?.applyAppearanceIfNeeded()
             }
             .store(in: &cancellables)
 
@@ -43,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
 
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(closePanel),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
+
         updateStatusItem()
     }
 
@@ -50,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func setUpStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.action = #selector(togglePopover)
+        statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.target = self
         statusItem.button?.imagePosition = .imageOnly
     }
@@ -69,49 +93,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         )
     }
 
-    // MARK: - Popover
+    // MARK: - Panel
 
-    private func setUpPopover() {
-        popover = NSPopover()
-        popover.behavior = .transient
-        // Without this the popover animates its own resize when the tab height changes,
-        // which reads as the content sliding down the panel.
-        popover.animates = false
-        popover.delegate = self
-        popover.appearance = settings.appearance.nsAppearance
-        appliedAppearance = settings.appearance
-
-        let controller = NSHostingController(
+    private func setUpPanel() {
+        let host = NSHostingView(
             rootView: PopoverView(
                 timer: timer,
                 settings: settings,
                 store: store,
-                onClose: { [weak self] in self?.popover.performClose(nil) },
+                onTabChange: { [weak self] tab in self?.tabChanged(tab) },
                 onQuit: { NSApp.terminate(nil) }
             )
         )
-        // Sizing follows the content, so no tab is padded out with dead space.
-        controller.sizingOptions = [.preferredContentSize]
-        popover.contentViewController = controller
+        host.sizingOptions = []
+        panel.contentView = host
+        // The Füllstand look is dark by design, whatever the system appearance.
+        panel.appearance = NSAppearance(named: .darkAqua)
     }
 
-    /// Reassigning NSAppearance forces a relayout, so only do it on a real change —
-    /// doing it on every publish is what made the panel jump.
-    private func applyAppearanceIfNeeded() {
-        guard appliedAppearance != settings.appearance else { return }
-        appliedAppearance = settings.appearance
-        popover.appearance = settings.appearance.nsAppearance
-        popover.contentViewController?.view.appearance = settings.appearance.nsAppearance
-    }
-
-    @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+    /// The panel's frame for the current tab: centred under the status item, kept on screen.
+    private func panelFrame() -> NSRect? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let size = NSSize(width: Theme.panelWidth, height: currentTab.panelHeight)
+        var x = anchor.midX - size.width / 2
+        if let visible = (window.screen ?? NSScreen.main)?.visibleFrame {
+            x = min(max(x, visible.minX + 8), visible.maxX - size.width - 8)
         }
+        return NSRect(x: x, y: anchor.minY - 6 - size.height, width: size.width, height: size.height)
+    }
+
+    private func tabChanged(_ tab: Tab) {
+        currentTab = tab
+        guard panel.isVisible, let frame = panelFrame() else { return }
+        panel.setFrame(frame, display: true)
+        panel.invalidateShadow()
+    }
+
+    @objc private func togglePanel() {
+        panel.isVisible ? closePanel() : openPanel()
+    }
+
+    private func openPanel() {
+        guard let frame = panelFrame() else { return }
+        panel.setFrame(frame, display: true)
+        panel.makeKeyAndOrderFront(nil)
+        panel.invalidateShadow()
+
+        // Close on any click in another app (or the desktop), like a popover would.
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in self?.closePanel() }
+
+        // Esc closes from the timer; on a sub-page it goes back (handled in the view).
+        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53, event.window === self.panel,
+                  self.currentTab == .timer else { return event }
+            self.closePanel()
+            return nil
+        }
+    }
+
+    @objc private func closePanel() {
+        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
+        if let escMonitor { NSEvent.removeMonitor(escMonitor) }
+        outsideClickMonitor = nil
+        escMonitor = nil
+        panel.orderOut(nil)
     }
 
     // MARK: - Phase transitions
@@ -127,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         if ended == .focus, settings.showOverlay {
+            closePanel()
             overlay.show(timer: timer, settings: settings, store: store) { [weak self] in
                 self?.timer.skip()
             }

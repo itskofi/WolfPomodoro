@@ -23,60 +23,123 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Wolf's visual language.
-///
-/// Warm charcoal pelt and bone off-white carry the surfaces; **green is the app's colour**
-/// and drives every accent — the wolf mark, the dial, controls and charts — with a paler
-/// green marking breaks. Every colour is dynamic, so the same tokens serve light and dark.
+/// Wolf's visual language: "Füllstand". The panel is one colour field that drains as the
+/// phase runs out — green for focus, sky blue for breaks — with heavy ink digits on top.
+/// Text that the fill line crosses is drawn twice and masked, so it is always legible.
 enum Theme {
-    private static func dynamic(light: NSColor, dark: NSColor) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
-        })
-    }
-
-    private static func srgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
+    static func srgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
         NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
                 green:   CGFloat((hex >> 8) & 0xFF) / 255,
                 blue:    CGFloat(hex & 0xFF) / 255,
                 alpha:   alpha)
     }
 
-    /// Panel base. Warm charcoal at night, cool bone by day — never pure black or white.
-    static let background = dynamic(light: srgb(0xEDEDEA), dark: srgb(0x191A1C))
-    /// Cards and raised surfaces.
-    static let surface    = dynamic(light: srgb(0xFFFFFF), dark: srgb(0x222326))
-    /// Hairlines and inactive marks.
-    static let surfaceRim = dynamic(light: srgb(0xDCDBD6), dark: srgb(0x33353A))
-    /// Green: the app's colour, used for the focus phase and every accent.
-    static let accent     = dynamic(light: srgb(0x1E7F4F), dark: srgb(0x4ED18A))
-    /// A paler, cooler green for breaks, so the two phases stay distinguishable.
-    static let mint       = dynamic(light: srgb(0x2C7A6B), dark: srgb(0x86DCC4))
-    static let text       = dynamic(light: srgb(0x1C1D20), dark: srgb(0xECEAE5))
-    static let textDim    = dynamic(light: srgb(0x6C6E73), dark: srgb(0x97948D))
-    static let textFaint  = dynamic(light: srgb(0x9B9C9F), dark: srgb(0x63656A))
-    /// Fill behind ghost buttons and pressed states.
-    static let wash       = dynamic(light: srgb(0x000000, 0.05), dark: srgb(0xFFFFFF, 0.06))
+    static let focusFill = srgb(0x3DDC84)
+    static let breakFill = srgb(0x7FD3F0)
 
-    /// Text on top of an accent fill. Paired with the accent shade in use — the light
-    /// accent is a deep green (needs white), the dark accent is a bright green (needs ink)
-    /// — so the label always has contrast.
-    static let onAccent = dynamic(light: srgb(0xFFFFFF), dark: srgb(0x16171A))
-
-    static let controlWidth: CGFloat = 138
-    static let popoverWidth: CGFloat = 320
-
-    static func accent(forBreak isBreak: Bool) -> Color { isBreak ? mint : accent }
-
-    /// Countdown type: monospaced, so the panel reads as an instrument and the digits
-    /// never shift width as the numbers change.
-    static func clockFont(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .medium, design: .monospaced)
+    /// Ink on top of the fill. The fills are bright in both appearances, so it is fixed.
+    static let ink = Color(nsColor: srgb(0x0B0B0B))
+    /// The colour of the drained part of the field: deep green / deep blue, always dark.
+    static func ground(forBreak isBreak: Bool) -> Color {
+        Color(nsColor: isBreak ? srgb(0x1A2730) : srgb(0x1E2A23))
     }
+    static func fill(forBreak isBreak: Bool) -> Color {
+        Color(nsColor: isBreak ? breakFill : focusFill)
+    }
+    /// Text on the drained ground.
+    static let onGround = Color.white
+    /// History and Settings sit on the focus ground.
+    static let surface  = Color(nsColor: srgb(0x1E2A23))
+    static let accent   = Color(nsColor: focusFill)
 
-    /// Small all-caps label with wide tracking, used for every eyebrow in the app.
-    static func eyebrow(_ size: CGFloat = 8.5) -> Font {
-        .system(size: size, weight: .semibold)
+    static let panelWidth: CGFloat = 300
+    static let panelRadius: CGFloat = 22
+
+    /// Heavy, tightly tracked, fixed-width digits.
+    static func digits(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .heavy).monospacedDigit()
+    }
+}
+
+/// Heavy countdown digits, tightened with kerning between the glyphs.
+struct BigDigits: View {
+    let text: String
+    let size: CGFloat
+    let color: Color
+
+    var body: some View {
+        // Longer strings ("100:00") step down so they still fit the same width.
+        let fitted = text.count > 5 ? size * 0.8 : size
+        // Kerning also applies after the last glyph, which would shrink the frame and clip
+        // it — so the last character is appended unkerned.
+        (Text(String(text.dropLast())).kerning(-fitted * 0.04) + Text(String(text.suffix(1))))
+            .font(Theme.digits(fitted))
+            .fixedSize()
+            .foregroundStyle(color)
+    }
+}
+
+/// Which copy of a two-tone layout is being drawn.
+enum DrainLayer {
+    case ground, fill, controls
+    var text: Color { self == .fill ? Theme.ink : Theme.onGround }
+    var showsText: Bool { self != .controls }
+}
+
+/// A colour field drained to `fraction` (1 = full). `layout` is drawn three times on
+/// identical geometry: text on the ground, text on the fill (each masked to its region),
+/// and the interactive controls on top.
+struct DrainingField<Layout: View>: View {
+    let fraction: Double
+    let isBreak: Bool
+    @ViewBuilder let layout: (DrainLayer) -> Layout
+
+    var body: some View {
+        GeometryReader { geo in
+            let height = geo.size.height
+            let fillHeight = height * min(max(fraction, 0), 1)
+            ZStack {
+                Theme.ground(forBreak: isBreak)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Theme.fill(forBreak: isBreak)
+                        .frame(height: fillHeight)
+                        .animation(.linear(duration: 0.5), value: fraction)
+                }
+                layout(.ground)
+                    .mask(alignment: .top) {
+                        // 1 pt overlap hides the anti-aliasing seam at the fill line;
+                        // the fill copy is drawn on top, so the overlap never shows.
+                        Rectangle().frame(height: min(height, height - fillHeight + 1))
+                            .animation(.linear(duration: 0.5), value: fraction)
+                    }
+                    .allowsHitTesting(false)
+                layout(.fill)
+                    .mask(alignment: .bottom) {
+                        Rectangle().frame(height: fillHeight)
+                            .animation(.linear(duration: 0.5), value: fraction)
+                    }
+                    .allowsHitTesting(false)
+                layout(.controls)
+            }
+        }
+    }
+}
+
+/// Button colours for a control sitting on the fill or on the drained ground.
+struct ControlPalette {
+    let primaryBackground: Color
+    let primaryForeground: Color
+    let softBackground: Color
+    let softForeground: Color
+
+    static func on(fill isOnFill: Bool, isBreak: Bool) -> ControlPalette {
+        let fill = Theme.fill(forBreak: isBreak)
+        return isOnFill
+            ? ControlPalette(primaryBackground: Theme.ink, primaryForeground: fill,
+                             softBackground: Theme.ink.opacity(0.12), softForeground: Theme.ink)
+            : ControlPalette(primaryBackground: fill, primaryForeground: Theme.ink,
+                             softBackground: Theme.onGround.opacity(0.12), softForeground: Theme.onGround)
     }
 }
 
@@ -103,112 +166,55 @@ final class AppearanceBridge: ObservableObject {
     }
 }
 
-/// A full-width card. All groups use this, so they share identical edges and padding.
-struct Card<Content: View>: View {
-    let title: String?
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            if let title {
-                Text(title.uppercased())
-                    .font(Theme.eyebrow())
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.textFaint)
-            }
-            content
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9)
-                        .strokeBorder(Theme.surfaceRim, lineWidth: 1)
-                )
-        )
-    }
-}
-
-/// One settings line: label left, control in a shared right-hand column.
-struct Row<Control: View>: View {
-    let label: String
-    @ViewBuilder var control: Control
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(.system(size: 11.5))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1)
-            Spacer(minLength: 6)
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                control
-            }
-            .frame(width: Theme.controlWidth)
-        }
-        .frame(height: 22)
-    }
-}
-
-struct WolfPrimaryButtonStyle: ButtonStyle {
-    var tint: Color = Theme.accent
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Theme.onAccent)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(tint.opacity(configuration.isPressed ? 0.78 : 1))
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-struct WolfGhostButtonStyle: ButtonStyle {
+/// Filled pill: the main action.
+struct PillButtonStyle: ButtonStyle {
+    var background: Color
+    var foreground: Color
+    var height: CGFloat = 48
+    var fontSize: CGFloat = 15
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(hovering ? Theme.text : Theme.textDim)
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 20)
+            .frame(height: height)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(configuration.isPressed || hovering ? Theme.wash : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .strokeBorder(Theme.surfaceRim, lineWidth: 1)
-                    )
-            )
-            // Without this the clear background takes no clicks and only the label works.
-            .contentShape(RoundedRectangle(cornerRadius: 7))
+            .background(Capsule().fill(background))
+            .opacity(configuration.isPressed ? 0.8 : (hovering ? 0.92 : 1))
+            .contentShape(Capsule())
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
-/// Panel chrome button: quiet by default, colouring only under the pointer — the macOS
-/// traffic-light behaviour, without shouting when idle.
-struct ChromeButtonStyle: ButtonStyle {
-    var hoverTint: Color
+/// Round icon button on a soft tint.
+struct CircleIconStyle: ButtonStyle {
+    var background: Color
+    var foreground: Color
+    var size: CGFloat = 48
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 7.5, weight: .black))
-            .foregroundStyle(hovering ? Theme.onAccent : Theme.textFaint)
-            .frame(width: 15, height: 15)
-            .background(
-                Circle().fill(hovering ? hoverTint.opacity(configuration.isPressed ? 0.7 : 1) : Theme.wash)
-            )
+            .font(.system(size: size * 0.36, weight: .bold))
+            .foregroundStyle(foreground)
+            .frame(width: size, height: size)
+            .background(Circle().fill(background))
+            .brightness(hovering ? 0.06 : 0)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .contentShape(Circle())
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+extension Date {
+    var shortTime: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: self)
     }
 }

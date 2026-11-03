@@ -3,177 +3,210 @@ import SwiftUI
 enum Tab: String, CaseIterable {
     case timer = "Timer", history = "History", settings = "Settings"
 
-    /// Declared heights let the panel resize smoothly between tabs instead of the
-    /// content being torn down and rebuilt at a new size.
+    /// Full panel height per tab. The panel window is resized to this, anchored at the top.
     var panelHeight: CGFloat {
         switch self {
-        case .timer:    return 214
-        case .history:  return 330
-        case .settings: return 430
+        case .timer:    return 392
+        case .history:  return 352
+        case .settings: return 480
         }
     }
+}
+
+/// Fraction of the field still filled, following the menu bar box direction setting.
+func fillFraction(_ timer: PomodoroTimer, _ settings: Settings) -> Double {
+    settings.boxDirection == .emptiesOut ? 1 - timer.progress : timer.progress
 }
 
 struct PopoverView: View {
     @ObservedObject var timer: PomodoroTimer
     @ObservedObject var settings: Settings
     @ObservedObject var store: SessionStore
-    let onClose: () -> Void
+    let onTabChange: (Tab) -> Void
     let onQuit: () -> Void
 
-    @State private var tab: Tab = .timer
-    @ObservedObject private var appearance = AppearanceBridge.shared
+    @State var tab: Tab = .timer
 
     var body: some View {
-        VStack(spacing: 0) {
-            titleBar
-            tabBar
-            Divider().overlay(Theme.surfaceRim)
-
-            // All three tabs stay mounted; switching only changes which one is visible.
-            // No animation and no rebuild — the panel must snap, not slide.
-            ZStack(alignment: .top) {
-                tabContent(.timer) {
-                    TimerTab(timer: timer, settings: settings).padding(14)
-                }
-                tabContent(.history) {
-                    ScrollView { HistoryView(store: store).padding(14) }
-                        .scrollIndicators(.never)
-                }
-                tabContent(.settings) {
-                    ScrollView {
-                        SettingsView(settings: settings, timer: timer, store: store).padding(14)
-                    }
-                    .scrollIndicators(.never)
+        // All three stay mounted; switching only changes which one is visible.
+        ZStack(alignment: .top) {
+            pane(.timer) {
+                TimerTab(timer: timer, settings: settings, store: store, active: tab == .timer) { go($0) }
+            }
+            pane(.history) {
+                SubPage(title: "History", active: tab == .history, back: { go(.timer) }) {
+                    HistoryView(store: store)
                 }
             }
-            .frame(width: Theme.popoverWidth, height: tab.panelHeight, alignment: .top)
-            .clipped()
+            pane(.settings) {
+                SubPage(title: "Settings", active: tab == .settings, back: { go(.timer) }) {
+                    SettingsView(settings: settings, timer: timer, store: store, onQuit: onQuit)
+                }
+            }
         }
-        .frame(width: Theme.popoverWidth)
-        .background(Theme.background)
-        .environment(\.colorScheme, appearance.scheme(for: settings.appearance))
+        .frame(width: Theme.panelWidth, height: tab.panelHeight, alignment: .top)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .tint(Theme.accent)
+        // The Füllstand look is dark by design.
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func go(_ next: Tab) {
+        tab = next
+        onTabChange(next)
     }
 
     @ViewBuilder
-    private func tabContent<Content: View>(_ item: Tab, @ViewBuilder content: () -> Content) -> some View {
+    private func pane<Content: View>(_ item: Tab, @ViewBuilder content: () -> Content) -> some View {
         content()
-            .frame(width: Theme.popoverWidth, alignment: .top)
+            .frame(width: Theme.panelWidth, height: item.panelHeight, alignment: .top)
             .opacity(tab == item ? 1 : 0)
             .allowsHitTesting(tab == item)
     }
-
-    private var titleBar: some View {
-        HStack(spacing: 8) {
-            Button(action: onClose) { Text("✕") }
-                .buttonStyle(ChromeButtonStyle(hoverTint: Color(red: 0.91, green: 0.35, blue: 0.31)))
-                .help("Close")
-
-            Spacer()
-
-            Text("WOLF")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(3)
-                .foregroundStyle(Theme.textDim)
-
-            Spacer()
-
-            Button(action: onQuit) { Text("⏻") }
-                .buttonStyle(ChromeButtonStyle(hoverTint: Theme.textDim))
-                .help("Quit Wolf")
-        }
-        .padding(.horizontal, 11)
-        .padding(.top, 10)
-        .padding(.bottom, 9)
-    }
-
-    private var tabBar: some View {
-        HStack(spacing: 2) {
-            ForEach(Tab.allCases, id: \.self) { item in
-                TabButton(item: item, isSelected: tab == item) { tab = item }
-            }
-        }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 8).fill(Theme.wash)
-        )
-        .padding(.horizontal, 11)
-        .padding(.bottom, 10)
-    }
 }
 
-private struct TabButton: View {
-    let item: Tab
-    let isSelected: Bool
-    let action: () -> Void
-
-    @State private var hovering = false
+/// History and Settings: a back button, a title, and the page on a quiet surface.
+private struct SubPage<Content: View>: View {
+    let title: String
+    let active: Bool
+    let back: () -> Void
+    @ViewBuilder var content: Content
 
     var body: some View {
-        Button(action: action) {
-            Text(item.rawValue)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected || hovering ? Theme.text : Theme.textDim)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Theme.surface : (hovering ? Theme.wash : Color.clear))
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 6))
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Button(action: back) { Image(systemName: "chevron.left") }
+                    .buttonStyle(CircleIconStyle(background: Theme.onGround.opacity(0.1),
+                                                 foreground: Theme.onGround, size: 28))
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .disabled(!active)
+                    .help("Back")
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.onGround.opacity(0.7))
+                Spacer()
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 22)
+            content
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.surface)
     }
 }
 
 struct TimerTab: View {
     @ObservedObject var timer: PomodoroTimer
     @ObservedObject var settings: Settings
+    @ObservedObject var store: SessionStore
+    /// Only the visible tab may own keyboard shortcuts.
+    let active: Bool
+    let open: (Tab) -> Void
 
-    private var accent: Color { Theme.accent(forBreak: timer.phase.isBreak) }
+    @State private var hovering = false
+
+    private let padding: CGFloat = 22
+    private let headerButton: CGFloat = 28
+    private let controlHeight: CGFloat = 48
+
+    private var isBreak: Bool { timer.phase.isBreak }
+    private var fraction: Double { fillFraction(timer, settings) }
+    private var fillHeight: CGFloat { Tab.timer.panelHeight * fraction }
 
     var body: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 6) {
-                Text(timer.phase.title.uppercased())
-                    .font(Theme.eyebrow(9))
-                    .tracking(1.8)
-                    .foregroundStyle(Theme.textDim)
-
-                Text(timer.remaining.clockString)
-                    .font(Theme.clockFont(34))
-                    .foregroundStyle(Theme.text)
-
-                // A slim bar carries progress; it stays out of the way of the number.
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.surfaceRim)
-                        Capsule()
-                            .fill(accent)
-                            .frame(width: geo.size.width * timer.progress)
-                    }
-                }
-                .frame(height: 3)
-                .padding(.top, 4)
+        DrainingField(fraction: fraction, isBreak: isBreak) { layer in
+            VStack(alignment: .leading, spacing: 0) {
+                header(layer)
+                Spacer(minLength: 0)
+                BigDigits(text: timer.remaining.bigClockString, size: 86, color: layer.text)
+                    .opacity(layer.showsText ? 1 : 0)
+                Text(statusLine)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(layer.text.opacity(0.6))
+                    .opacity(layer.showsText ? 1 : 0)
+                    .padding(.top, 6)
+                controls(layer)
+                    .padding(.top, 22)
             }
-            .padding(.top, 6)
+            .padding(padding)
+        }
+        .onHover { inside in
+            withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
+        }
+    }
 
-            SessionDots(done: timer.completedFocusSessions, total: settings.intervals, accent: accent)
+    private func header(_ layer: DrainLayer) -> some View {
+        HStack(spacing: 8) {
+            Text(timer.phase.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(layer.text.opacity(0.7))
+                .opacity(layer.showsText ? 1 : 0)
+            Spacer()
+            // History and Settings only show while the pointer is over the panel.
+            if layer == .controls {
+                let palette = ControlPalette.on(
+                    fill: fillHeight > Tab.timer.panelHeight - padding - headerButton / 2,
+                    isBreak: isBreak)
+                ForEach([(Tab.history, "chart.bar.fill"), (Tab.settings, "gearshape.fill")], id: \.0) { item in
+                    Button { open(item.0) } label: { Image(systemName: item.1) }
+                        .buttonStyle(CircleIconStyle(background: palette.softBackground,
+                                                     foreground: palette.softForeground,
+                                                     size: headerButton))
+                        .help(item.0.rawValue)
+                }
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
+            }
+            Text(cycle)
+                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                .foregroundStyle(layer.text.opacity(0.7))
+                .opacity(layer.showsText ? 1 : 0)
+                .padding(.leading, 4)
+        }
+        .frame(height: headerButton)
+    }
 
-            VStack(spacing: 7) {
+    @ViewBuilder
+    private func controls(_ layer: DrainLayer) -> some View {
+        if layer == .controls {
+            let palette = ControlPalette.on(fill: fillHeight > padding + controlHeight / 2,
+                                            isBreak: isBreak)
+            HStack(spacing: 10) {
                 Button(primaryLabel, action: timer.toggle)
-                    .buttonStyle(WolfPrimaryButtonStyle(tint: accent))
+                    .buttonStyle(PillButtonStyle(background: palette.primaryBackground,
+                                                 foreground: palette.primaryForeground))
                     .keyboardShortcut(.space, modifiers: [])
-
-                HStack(spacing: 7) {
-                    Button("Skip", action: timer.skip)
-                    Button("Reset", action: timer.reset)
-                }
-                .buttonStyle(WolfGhostButtonStyle())
+                Button(action: timer.reset) { Image(systemName: "arrow.counterclockwise") }
+                    .buttonStyle(CircleIconStyle(background: palette.softBackground,
+                                                 foreground: palette.softForeground))
+                    .help("Reset")
+                Button(action: timer.skip) { Image(systemName: "forward.fill") }
+                    .buttonStyle(CircleIconStyle(background: palette.softBackground,
+                                                 foreground: palette.softForeground))
+                    .help("Skip")
             }
-            .padding(.top, 2)
+            .disabled(!active)
+        } else {
+            Color.clear.frame(height: controlHeight)
+        }
+    }
+
+    /// Position in the long-break cycle, e.g. "2 / 4".
+    private var cycle: String {
+        let current = min(timer.completedFocusSessions + (isBreak ? 0 : 1), settings.intervals)
+        return "\(max(current, 1)) / \(settings.intervals)"
+    }
+
+    private var statusLine: String {
+        let today = "\(store.todayFocusSeconds < 60 ? "0m" : store.todayFocusSeconds.durationString) today"
+        switch timer.state {
+        case .running: return "ends \(Date().addingTimeInterval(timer.remaining).shortTime) · \(today)"
+        case .paused:  return "paused · \(today)"
+        case .idle:    return "\(Int(timer.totalForCurrentPhase / 60)) min · \(today)"
         }
     }
 
@@ -181,24 +214,7 @@ struct TimerTab: View {
         switch timer.state {
         case .running: return "Pause"
         case .paused:  return "Resume"
-        case .idle:    return timer.phase.isBreak ? "Start \(timer.phase.title)" : "Start Focus"
+        case .idle:    return "Start"
         }
-    }
-}
-
-private struct SessionDots: View {
-    let done: Int
-    let total: Int
-    let accent: Color
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<max(1, total), id: \.self) { index in
-                Circle()
-                    .fill(index < done ? accent : Theme.surfaceRim)
-                    .frame(width: 6, height: 6)
-            }
-        }
-        .help("Focus sessions completed before the long break")
     }
 }

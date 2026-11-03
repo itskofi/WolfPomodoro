@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// A dropdown of preset minute values with a "Custom…" entry that swaps the dropdown for
-/// a number field in the same spot. Sits in the shared control column so every settings
-/// row shares one trailing edge.
+/// A Form-native picker of preset minute values with a "Custom…" entry that swaps the
+/// menu for a number field in the same row.
 struct DurationPicker: View {
     let label: String
     @Binding var minutes: Int
@@ -15,38 +14,29 @@ struct DurationPicker: View {
     private let customTag = -1
 
     var body: some View {
-        Row(label: label) {
-            if customMode {
-                HStack(spacing: 5) {
+        if customMode {
+            LabeledContent(label) {
+                HStack(spacing: 6) {
                     TextField("", text: $customText)
                         .textFieldStyle(.roundedBorder)
                         .multilineTextAlignment(.trailing)
+                        .frame(width: 48)
                         .focused($fieldFocused)
                         .onSubmit(commit)
-                        .frame(maxWidth: .infinity)
-                    Text("min")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.textDim)
-                    Button("Set", action: commit)
-                        .buttonStyle(.borderless)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
+                    Text("min").foregroundStyle(.secondary)
+                    Button("Done", action: commit)
                 }
-            } else {
-                Picker("", selection: selection) {
-                    ForEach(presets, id: \.self) { preset in
-                        Text("\(preset) min").tag(preset)
-                    }
-                    if !presets.contains(minutes) {
-                        Text("\(minutes) min (custom)").tag(minutes)
-                    }
-                    Text("Custom…").tag(customTag)
+            }
+        } else {
+            Picker(label, selection: selection) {
+                ForEach(presets, id: \.self) { Text("\($0) min").tag($0) }
+                if !presets.contains(minutes) {
+                    Text("\(minutes) min").tag(minutes)
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
+                Divider()
+                Text("Custom…").tag(customTag)
             }
         }
-        .onAppear { customText = String(minutes) }
     }
 
     private var selection: Binding<Int> {
@@ -56,7 +46,7 @@ struct DurationPicker: View {
                 if newValue == customTag {
                     customText = String(minutes)
                     customMode = true
-                    fieldFocused = true
+                    DispatchQueue.main.async { fieldFocused = true }
                 } else {
                     minutes = newValue
                 }
@@ -68,7 +58,6 @@ struct DurationPicker: View {
         if let value = Int(customText.trimmingCharacters(in: .whitespaces)) {
             minutes = min(max(value, 1), 180)
         }
-        customText = String(minutes)
         customMode = false
     }
 }

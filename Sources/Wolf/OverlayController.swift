@@ -24,7 +24,7 @@ final class OverlayController {
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             window.isOpaque = true
             window.backgroundColor = .black
-            window.appearance = settings.appearance.nsAppearance
+            window.appearance = NSAppearance(named: .darkAqua)
             window.hasShadow = false
             window.contentView = NSHostingView(
                 rootView: OverlayView(
@@ -61,6 +61,7 @@ final class OverlayController {
     }
 }
 
+/// The break as one colour field that drains until the break is over.
 private struct OverlayView: View {
     @ObservedObject var timer: PomodoroTimer
     @ObservedObject var settings: Settings
@@ -68,77 +69,69 @@ private struct OverlayView: View {
     let onSkip: () -> Void
     let onDismiss: () -> Void
 
-    @ObservedObject private var appearance = AppearanceBridge.shared
-
-    private var accent: Color { Theme.accent(forBreak: timer.phase.isBreak) }
+    private let padding: CGFloat = 56
+    private let buttonHeight: CGFloat = 44
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Solid, not translucent: the break screen is its own surface.
-            Theme.background.ignoresSafeArea()
-            RadialGradient(
-                colors: [accent.opacity(0.10), .clear],
-                center: .center, startRadius: 40, endRadius: 700
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                Text(timer.phase.isBreak ? "Time for a break" : "Back to focus")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(Theme.textDim)
-
-                Text(timer.remaining.clockString)
-                    .font(Theme.clockFont(84))
-                    .foregroundStyle(Theme.text)
-
-                HStack(spacing: 9) {
-                    ForEach(0..<max(1, settings.intervals), id: \.self) { index in
-                        Circle()
-                            .fill(index < timer.completedFocusSessions ? accent : Theme.surfaceRim)
-                            .frame(width: 9, height: 9)
+        GeometryReader { geo in
+            let fraction = fillFraction(timer, settings)
+            let fillHeight = geo.size.height * fraction
+            let digitSize = min(geo.size.height * 0.4, geo.size.width * 0.24)
+            DrainingField(fraction: fraction, isBreak: timer.phase.isBreak) { layer in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center) {
+                        Text(timer.phase.title)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(layer.text.opacity(0.65))
+                            .opacity(layer.showsText ? 1 : 0)
+                        Spacer()
+                        buttons(layer, onFill: fillHeight > geo.size.height - padding - buttonHeight / 2)
                     }
+                    .frame(height: buttonHeight)
+
+                    Spacer(minLength: 0)
+
+                    BigDigits(text: timer.remaining.bigClockString, size: digitSize, color: layer.text)
+                        .opacity(layer.showsText ? 1 : 0)
+                    Text(timer.phase.isBreak ? "Stand up and look away until it's empty." : "Back to focus.")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(layer.text.opacity(0.6))
+                        .opacity(layer.showsText ? 1 : 0)
+                        .padding(.top, 14)
+                    Text(todayLine)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(layer.text.opacity(0.45))
+                        .opacity(layer.showsText ? 1 : 0)
+                        .padding(.top, 8)
                 }
-
-                Text("\(store.todayFocusSeconds.durationString) focused today  ·  \(store.todayFocusSessions) sessions")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.textDim)
-
-                HStack(spacing: 12) {
-                    Button("Skip break") { onSkip(); onDismiss() }
-                    Button("Dismiss screen") { onDismiss() }
-                }
-                .buttonStyle(OverlayButtonStyle())
-                .padding(.top, 6)
-
-                Text("Esc to dismiss")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textFaint)
+                .padding(padding)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Button(action: onDismiss) { Text("✕") }
-                .buttonStyle(ChromeButtonStyle(hoverTint: Color(red: 0.91, green: 0.35, blue: 0.31)))
-                .help("Close the break screen")
-                .padding(22)
         }
-        .environment(\.colorScheme, appearance.scheme(for: settings.appearance))
+        .ignoresSafeArea()
+        .environment(\.colorScheme, .dark)
     }
-}
 
-private struct OverlayButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(Theme.text)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(configuration.isPressed ? Theme.wash : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9)
-                            .strokeBorder(Theme.surfaceRim, lineWidth: 1)
-                    )
-            )
+    private var todayLine: String {
+        let sessions = store.todayFocusSessions
+        let count = "\(sessions) \(sessions == 1 ? "session" : "sessions") today"
+        return store.todayFocusSeconds >= 60 ? "\(store.todayFocusSeconds.durationString) focused · \(count)" : count
+    }
+
+    @ViewBuilder
+    private func buttons(_ layer: DrainLayer, onFill: Bool) -> some View {
+        if layer == .controls {
+            let palette = ControlPalette.on(fill: onFill, isBreak: timer.phase.isBreak)
+            HStack(spacing: 10) {
+                Button("Skip Break") { onSkip(); onDismiss() }
+                    .buttonStyle(PillButtonStyle(background: palette.softBackground,
+                                                 foreground: palette.softForeground,
+                                                 height: buttonHeight, fontSize: 15))
+                Button("Hide") { onDismiss() }
+                    .buttonStyle(PillButtonStyle(background: palette.primaryBackground,
+                                                 foreground: palette.primaryForeground,
+                                                 height: buttonHeight, fontSize: 15))
+            }
+            .fixedSize()
+        }
     }
 }

@@ -1,7 +1,8 @@
 import AppKit
 
-/// Draws the menu bar indicator: a rounded box whose fill tracks the phase, with the
-/// remaining time set large inside it. The box hugs the text so it never looks empty.
+/// Draws the menu bar indicator in the Füllstand style: a well-rounded box that fills with
+/// the phase colour (green for focus, blue for breaks). The time sits on top in the menu
+/// bar's label colour, switching to ink where it overlaps the fill so it stays legible.
 enum MenuBarBox {
 
     struct Model {
@@ -13,63 +14,56 @@ enum MenuBarBox {
     }
 
     private static let height: CGFloat = 16
-    private static let horizontalPadding: CGFloat = 5
-    private static let cornerRadius: CGFloat = 3.5
+    private static let horizontalPadding: CGFloat = 6
+    private static let cornerRadius: CGFloat = 5.5
 
-    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
+    private static let ink = Theme.srgb(0x0B0B0B)
 
     static func image(_ model: Model) -> NSImage {
-        let tint: NSColor = model.isBreak ? breakGreen : labelColor()
-        let alpha: CGFloat = model.isPaused ? 0.55 : 1.0
+        let fillColor = model.isBreak ? Theme.breakFill : Theme.focusFill
+        let alpha: CGFloat = model.isPaused ? 0.5 : 1.0
+        let fraction = min(max(model.direction == .emptiesOut ? 1 - model.progress : model.progress, 0), 1)
 
         let text = model.remaining.clockString as NSString
-        let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: tint.withAlphaComponent(alpha)
-        ]
-        let textSize = text.size(withAttributes: textAttributes)
+        let textSize = text.size(withAttributes: [.font: font])
         let width = ceil(textSize.width) + horizontalPadding * 2
 
+        // The handler runs at draw time under the menu bar's own appearance, so
+        // `labelColor` resolves to the right colour on light and dark menu bars.
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
             let box = rect.insetBy(dx: 0.5, dy: 0.5)
             let path = NSBezierPath(roundedRect: box, xRadius: cornerRadius, yRadius: cornerRadius)
+            let label = NSColor.labelColor
+            let textOrigin = NSPoint(x: rect.midX - textSize.width / 2,
+                                     y: rect.midY - textSize.height / 2)
+            let fillRect = NSRect(x: box.minX, y: box.minY,
+                                  width: box.width * CGFloat(fraction), height: box.height)
 
-            // Fill proportion, per the user's chosen direction.
-            let fraction = model.direction == .emptiesOut ? 1 - model.progress : model.progress
+            // Text on the empty part.
+            text.draw(at: textOrigin, withAttributes: [
+                .font: font, .foregroundColor: label.withAlphaComponent(alpha)
+            ])
+
+            // Fill, then the same text in ink clipped to the filled part.
             if fraction > 0.001 {
                 NSGraphicsContext.saveGraphicsState()
                 path.addClip()
-                let fillWidth = box.width * CGFloat(min(max(fraction, 0), 1))
-                tint.withAlphaComponent(0.22 * alpha).setFill()
-                NSRect(x: box.minX, y: box.minY, width: fillWidth, height: box.height).fill()
+                fillColor.withAlphaComponent(alpha).setFill()
+                fillRect.fill()
+                NSBezierPath(rect: fillRect).addClip()
+                text.draw(at: textOrigin, withAttributes: [.font: font, .foregroundColor: ink])
                 NSGraphicsContext.restoreGraphicsState()
             }
 
-            tint.withAlphaComponent(0.65 * alpha).setStroke()
+            label.withAlphaComponent(0.5 * alpha).setStroke()
             path.lineWidth = 1
             path.stroke()
-
-            text.draw(
-                at: NSPoint(x: rect.midX - textSize.width / 2, y: rect.midY - textSize.height / 2),
-                withAttributes: textAttributes
-            )
-
             return true
         }
 
-        // Template rendering lets the system tint for light/dark menu bars, but would
-        // discard the green, so it is only used for the neutral focus state.
-        image.isTemplate = !model.isBreak
+        // Not a template: the fill keeps its colour.
+        image.isTemplate = false
         return image
-    }
-
-    private static let breakGreen = NSColor(srgbRed: 0.525, green: 0.863, blue: 0.769, alpha: 1)
-
-    private static func labelColor() -> NSColor {
-        var color = NSColor.labelColor
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            color = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
-        }
-        return color
     }
 }

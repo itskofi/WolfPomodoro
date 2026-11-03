@@ -12,7 +12,7 @@ No accounts, no network requests, no analytics. Everything is stored in `UserDef
 - **Menu bar box** — a drawn box with the remaining time inside it, whose fill tracks the
   phase. Choose whether it *empties out* or *fills up*; it turns green during breaks.
 - **Full-screen break screen** on every display when a focus session ends, dismissible
-  with `Esc`, the ✕, or a button.
+  with `Esc` or a button.
 - **Notifications** with your own wording for each transition.
 - **History** — today's focus total, a 7-day bar chart, and per-day totals. Breaks and
   skipped (partial) sessions are recorded honestly.
@@ -35,10 +35,10 @@ ID certificate, the hardened runtime, and notarization. See §9 of [PRD.md](PRD.
 
 ## Design
 
-Palette comes from the animal rather than from software: warm charcoal pelt, bone
-off-white, and amber — the eye — as the accent, with a moonlit sage for breaks. The
-countdown sits inside a 60-tick stopwatch bezel rather than the usual progress ring.
-Full design notes and requirements are in [PRD.md](PRD.md).
+"Füllstand": the panel is a single colour field that drains as the phase runs out —
+green for focus, sky blue for breaks — with heavy ink digits on top. Where the fill line
+crosses text, the text is drawn twice and masked, so it stays legible on both sides. The
+break screen is the same field at full-screen size. Full requirements are in [PRD.md](PRD.md).
 
 ## Licence
 

@@ -4,99 +4,50 @@ struct HistoryView: View {
     @ObservedObject var store: SessionStore
 
     private var days: [(date: Date, focus: TimeInterval)] { store.dailyFocusTotals(days: 7) }
-    private var peak: TimeInterval { max(days.map(\.focus).max() ?? 0, 1) }
+    private var peak: TimeInterval { max(days.map(\.focus).max() ?? 0, 30 * 60) }
 
     var body: some View {
-        VStack(spacing: 10) {
-            Card(title: "Today") {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text(store.todayFocusSeconds.durationString)
-                        .font(.system(size: 26, weight: .regular))
-                        .foregroundStyle(Theme.text)
-                    Text("focused")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(Theme.textDim)
-                }
-                statLine
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            BigDigits(text: store.todayFocusSeconds < 60 ? "0m" : store.todayFocusSeconds.durationString,
+                      size: 56, color: Theme.onGround)
+            Text(summary)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.onGround.opacity(0.55))
+                .padding(.top, 2)
 
-            Card(title: "Last 7 days") {
-                chart
-                Divider().overlay(Theme.surfaceRim).padding(.vertical, 2)
-                grid
-            }
-
-            if store.records.isEmpty {
-                Text("No sessions yet. Finish a focus session and it lands here.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textFaint)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    private var statLine: some View {
-        var parts = ["\(store.todayFocusSessions) session\(store.todayFocusSessions == 1 ? "" : "s")"]
-        if store.todayBreakSeconds >= 60 { parts.append("\(store.todayBreakSeconds.durationString) break") }
-        if store.todayPartialSessions > 0 { parts.append("\(store.todayPartialSessions) partial") }
-        parts.append("week \(store.weekFocusSeconds.durationString)")
-        return Text(parts.joined(separator: "  ·  "))
-            .font(.system(size: 10.5))
-            .foregroundStyle(Theme.textDim)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var chart: some View {
-        HStack(alignment: .bottom, spacing: 6) {
-            ForEach(days, id: \.date) { day in
-                VStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(isToday(day.date) ? Theme.accent : Theme.accent.opacity(0.28))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(3, 54 * day.focus / peak))
-                    Text(weekdayInitial(day.date))
-                        .font(.system(size: 9, weight: isToday(day.date) ? .bold : .regular))
-                        .foregroundStyle(isToday(day.date) ? Theme.text : Theme.textFaint)
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(days, id: \.date) { day in
+                    let today = Calendar.current.isDateInToday(day.date)
+                    VStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(today ? Theme.accent : Theme.accent.opacity(0.28))
+                            .frame(height: max(8, 120 * day.focus / peak))
+                        Text(weekday(day.date))
+                            .font(.system(size: 11, weight: today ? .heavy : .semibold))
+                            .foregroundStyle(Theme.onGround.opacity(today ? 1 : 0.45))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .help("\(day.focus.durationString)")
                 }
             }
+            .frame(height: 144, alignment: .bottom)
+            .padding(.top, 26)
         }
-        .frame(height: 70, alignment: .bottom)
+        .padding(.horizontal, 22)
+        .padding(.top, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var grid: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible(), alignment: .leading),
-                      GridItem(.flexible(), alignment: .leading)],
-            spacing: 6
-        ) {
-            ForEach(days.reversed(), id: \.date) { day in
-                HStack(spacing: 6) {
-                    Text(dayLabel(day.date))
-                        .foregroundStyle(Theme.textDim)
-                        .frame(width: 50, alignment: .leading)
-                    Text(day.focus.durationString)
-                        .monospacedDigit()
-                        .foregroundStyle(day.focus > 0 ? Theme.text : Theme.textFaint)
-                }
-                .font(.system(size: 11))
-            }
-        }
+    private var summary: String {
+        let sessions = store.todayFocusSessions
+        var parts = ["today", "\(sessions) session\(sessions == 1 ? "" : "s")"]
+        if store.weekFocusSeconds >= 60 { parts.append("\(store.weekFocusSeconds.durationString) this week") }
+        return parts.joined(separator: " · ")
     }
 
-    private func isToday(_ date: Date) -> Bool { Calendar.current.isDateInToday(date) }
-
-    private func weekdayInitial(_ date: Date) -> String {
+    private func weekday(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEEE"
-        return formatter.string(from: date)
-    }
-
-    private func dayLabel(_ date: Date) -> String {
-        if Calendar.current.isDateInToday(date) { return "Today" }
-        if Calendar.current.isDateInYesterday(date) { return "Yest." }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE d"
         return formatter.string(from: date)
     }
 }

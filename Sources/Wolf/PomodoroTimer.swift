@@ -197,4 +197,10 @@ extension TimeInterval {
         let total = Int(rounded(.up))
         return String(format: "%02d:%02d", max(0, total) / 60, max(0, total) % 60)
     }
+
+    /// Large-display form without the leading zero: "4:59", "24:12", "100:00".
+    var bigClockString: String {
+        let total = Int(rounded(.up))
+        return String(format: "%d:%02d", max(0, total) / 60, max(0, total) % 60)
+    }
 }
