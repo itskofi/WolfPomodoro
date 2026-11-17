@@ -67,6 +67,8 @@ focus duration mid-focus does not retroactively move the current deadline).
   half opacity.
 - Clicking opens a panel directly under the menu bar with three tabs:
   **Timer · History · Settings** (see §6). The panel is sized to its content per tab.
+- Right-clicking starts the timer (or resumes it when paused) without opening the panel.
+  It does nothing while the timer is already running.
 - Timer tab: phase name, countdown, a slim progress bar, session dots (`● ● ○ ○`), one
   primary Start/Pause button, with Skip and Reset as ghost buttons beneath it.
 

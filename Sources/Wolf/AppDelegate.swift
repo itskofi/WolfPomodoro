@@ -74,9 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setUpStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.action = #selector(togglePanel)
+        statusItem.button?.action = #selector(statusItemClicked)
         statusItem.button?.target = self
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem.button?.imagePosition = .imageOnly
+    }
+
+    /// Left click toggles the panel; right click starts the timer.
+    @objc private func statusItemClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            timer.start()
+        } else {
+            togglePanel()
+        }
     }
 
     private func updateStatusItem() {
@@ -130,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.invalidateShadow()
     }
 
-    @objc private func togglePanel() {
+    private func togglePanel() {
         panel.isVisible ? closePanel() : openPanel()
     }
 
