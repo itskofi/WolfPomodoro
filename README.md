@@ -5,6 +5,18 @@ with a notification and an unmissable full-screen break screen when a session en
 
 No accounts, no network requests, no analytics. Everything is stored in `UserDefaults`.
 
+<p align="center">
+  <img src="docs/screenshots/timer.png" width="260" alt="Timer">
+  <img src="docs/screenshots/history.png" width="260" alt="History">
+  <img src="docs/screenshots/settings.png" width="260" alt="Settings">
+</p>
+
+## Download
+
+Grab `Wolf-0.4.zip` from the [latest release](https://github.com/itskofi/WolfPomodoro/releases/latest),
+unzip it and move `Wolf.app` to `Applications`. The app is ad-hoc signed (not notarized), so on
+first launch right-click it → **Open**, or run `xattr -dr com.apple.quarantine Wolf.app`.
+
 ## Features
 
 - **Focus / short break / long break** durations picked from presets (15, 25, 30, 45, 50,
